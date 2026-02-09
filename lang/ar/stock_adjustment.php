@@ -25,5 +25,6 @@
      'from_warehouse_to_recipient' => 'من مستودع الى جهة',
      'recipient' => 'الجهة',
      'discount' => 'الخصم', 
-     'total_stock_adjustment' => 'اجمالي المخزون المخرج '
+     'total_stock_adjustment' => 'اجمالي المخزون المخرج ',
+     'edit' => 'تعديل',
  ];

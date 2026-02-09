@@ -26,6 +26,8 @@
                         </svg> @lang('messages.add')
                     </a>
                 @endif
+
+                
             </div>
         @endslot
         <div class="table-responsive">

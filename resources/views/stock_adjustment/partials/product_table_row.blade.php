@@ -1,66 +1,66 @@
 <tr class="product_row">
-    {{-- 1. الحقل المخصص الأول (أصبح في بداية السطر) --}}
-    <td class="text-center custom-field-1">
-        {{ $product->product->product_custom_field1 ?? ($product->product_custom_field1 ?? '-') }}
+    @php
+        // تعريف كائن المنتج لسهولة الوصول
+        $p_obj = $product->product ?? $product; 
+        
+        // جلب السعر الأصلي (التكلفة) بدقة
+        $original_price = $p_obj->default_purchase_price ?? ($product->last_purchased_price ?? 0);
+        
+        // جلب سعر السند الحالي
+        $display_price = $purchase_price ?? ($unit_price ?? $original_price);
+    @endphp
+
+    {{-- 1. مخصص 1 --}}
+    <td class="text-center">
+        {{ $p_obj->product_custom_field1 ?? '-' }}
     </td>
 
-    {{-- 2. اسم المنتج (بدون SKU ومع حل مشكلة DUMMY) --}}
+    {{-- 2. اسم المنتج --}}
     <td>
-        @php
-            $p_name = $product->product->name ?? ($product->product_name ?? ($product->name ?? ''));
-            if(!empty($product->variation_name) && $product->variation_name != 'DUMMY') {
-                $p_name .= ' ' . $product->variation_name;
-            }
-        @endphp
-        <strong>{{ $p_name }}</strong>
+        <strong>{{ $p_obj->name ?? $p_obj->product_name }}</strong>
+        @if(!empty($product->name) && $product->name != 'DUMMY' && $product->name != $p_obj->name)
+            - {{ $product->name }}
+        @endif
         
-        {{-- الحقول المخفية الأساسية --}}
-        <input type="hidden" name="products[{{$row_index}}][product_id]" value="{{$product->product_id}}">
-        <input type="hidden" class="variation_id" value="{{$product->id ?? $product->variation_id}}" name="products[{{$row_index}}][variation_id]">
-        <input type="hidden" value="{{$product->enable_stock ?? ($product->product->enable_stock ?? 0)}}" name="products[{{$row_index}}][enable_stock]">
+        <input type="hidden" class="variation_id" value="{{ $product->id ?? $product->variation_id }}" name="products[{{$row_index}}][variation_id]">
+        <input type="hidden" name="products[{{$row_index}}][product_id]" value="{{ $p_obj->id ?? $product->product_id }}">
+        
+        {{-- حقل السعر الأصلي للمقارنة - بدونه لن يحسب الخصم --}}
+        <input type="hidden" class="original_purchase_price" value="{{ $product->product->default_purchase_price ?? ($product->default_purchase_price ?? ($product->last_purchased_price ?? 0)) }}">
     </td>
 
     {{-- 3. الكمية --}}
     <td>
-        @php
-            $qty = !empty($quantity) ? $quantity : (!empty($product->quantity_ordered) ? $product->quantity_ordered : 1);
-        @endphp
         <input type="text" class="form-control product_quantity input_number" 
-            value="{{@format_quantity($qty)}}" 
-            name="products[{{$row_index}}][quantity]">
+               value="{{ @format_quantity($quantity ?? 1) }}" 
+               name="products[{{$row_index}}][quantity]">
     </td>
 
-    {{-- 4. الحقل المخصص الثاني --}}
-    <td class="text-center custom-field-2">
-        {{ $product->product->product_custom_field2 ?? ($product->product_custom_field2 ?? '-') }}
+    {{-- 4. مخصص 2 --}}
+    <td class="text-center">
+        {{ $p_obj->product_custom_field2 ?? '-' }}
     </td>
 
-    {{-- 5. الحقل المخصص الثالث --}}
-    <td class="text-center custom-field-3">
-        {{ $product->product->product_custom_field3 ?? ($product->product_custom_field3 ?? '-') }}
+    {{-- 5. مخصص 3 --}}
+    <td class="text-center">
+        {{ $p_obj->product_custom_field3 ?? '-' }}
     </td>
 
-    {{-- 6. تكلفة الوحدة (مع حقل التكلفة الأصلية للخصم التلقائي) --}}
+    {{-- 6. السعر --}}
     <td>
-        @php
-            $unit_price_val = !empty($purchase_price) ? $purchase_price : ($product->default_purchase_price ?? ($product->last_purchased_price ?? 0));
-        @endphp
-        {{-- حقل مخفي يحمل التكلفة الأصلية للمقارنة وحساب الخصم في JS --}}
-        <input type="hidden" class="original_purchase_price" value="{{$unit_price_val}}">
-        
         <input type="text" name="products[{{$row_index}}][unit_price]" 
                class="form-control product_unit_price input_number" 
-               value="{{@num_format($unit_price_val)}}">
+               value="{{ @num_format($display_price) }}">
     </td>
 
-    {{-- 7. المجموع (إجمالي السطر) --}}
+    {{-- 7. المجموع --}}
     <td>
         <input type="text" readonly class="form-control product_line_total" 
-               value="{{@num_format($qty * $unit_price_val)}}" style="font-weight: bold;">
+               value="{{ @num_format(($quantity ?? 1) * $display_price) }}" style="font-weight: bold;">
     </td>
 
-    {{-- 8. زر الحذف --}}
+    {{-- 8. حذف --}}
     <td class="text-center">
-        <i class="fa fa-trash remove_product_row text-danger cursor-pointer" aria-hidden="true" style="font-size: 18px; cursor:pointer;"></i>
+        <i class="fa fa-trash remove_product_row text-danger cursor-pointer"></i>
     </td>
 </tr>

@@ -90,13 +90,28 @@ $(document).ready(function() {
     });
 
     // 4. مراقبة التغييرات في الكميات والأسعار
-    $(document).on('change', 'input.product_quantity', function() {
-        update_table_row($(this).closest('tr'));
-    });
-    $(document).on('change', 'input.product_unit_price', function() {
-        update_table_row($(this).closest('tr'));
-    });
+    // مراقبة الكمية (تغيير لحظي + عند الخروج من الخانة)
+$(document).on('change input', 'input.product_quantity', function() {
+    update_table_row($(this).closest('tr'));
+});
 
+// مراقبة سعر الوحدة (تغيير لحظي + عند الخروج من الخانة)
+$(document).on('change input', 'input.product_unit_price', function() {
+    update_table_row($(this).closest('tr'));
+    update_table_total();
+});
+
+// مراقبة شاملة لكل أحداث الإدخال في الجدول
+$(document).on('input change keyup', 'input.product_quantity, input.product_unit_price', function() {
+    // جلب السطر الذي حدث فيه التغيير
+    var tr = $(this).closest('tr');
+    
+    // تنفيذ الحسبة للسطر (الكمية × السعر)
+    update_table_row(tr);
+    
+    // تنفيذ الحسبة الكلية (الإجمالي + الخصم "خ")
+    update_table_total();
+});
     // 5. حذف سطر منتج
     $(document).on('click', '.remove_product_row', function() {
         swal({
@@ -203,44 +218,44 @@ function update_table_total() {
     var total_diff = 0;
 
     $('table#stock_adjustment_product_table tbody tr').each(function() {
-        var qty = parseFloat(__read_number($(this).find('input.product_quantity'))) || 0;
-        var unit_price = parseFloat(__read_number($(this).find('input.product_unit_price'))) || 0;
+        var row = $(this);
+        // استخدام دالة __read_number لفك تنسيق العملة
+        var qty = parseFloat(__read_number(row.find('input.product_quantity'))) || 0;
+        var unit_price = parseFloat(__read_number(row.find('input.product_unit_price'))) || 0;
         
-        // جلب السعر الأصلي من الحقل المخفي
-        var original_price = parseFloat($(this).find('input.original_purchase_price').val()) || 0;
+        // قراءة السعر الأصلي مباشرة لأنه مخزن كرقم بسيط في الـ value
+        var original_price = parseFloat(row.find('input.original_purchase_price').val()) || 0;
 
-        // حساب إجمالي السطر
         var row_total = qty * unit_price;
-        $(this).find('input.product_line_total').val(row_total);
         table_total += row_total;
 
-        // حساب الفرق (الخصم التلقائي)
         if (original_price > 0) {
-            var diff = (original_price - unit_price) * qty;
-            total_diff += diff;
+            total_diff += (original_price - unit_price) * qty;
         }
     });
 
-    // تحديث إجمالي السند الظاهر
-    $('input#total_amount').val(table_total);
     $('span#total_adjustment').text(__number_f(table_total));
+    $('#total_adjustment_value').val(table_total);
 
-    // تحديث خانة الخصم تلقائياً
     if ($('#total_amount_recovered').length > 0) {
+        // نستخدم __write_number لتنسيق الرقم قبل كتابته
         __write_number($('#total_amount_recovered'), total_diff);
     }
 }
-
 function update_table_row(tr) {
-   var quantity = parseFloat(__read_number(tr.find('input.product_quantity'))) || 0;
+    var quantity = parseFloat(__read_number(tr.find('input.product_quantity'))) || 0;
     var unit_price = parseFloat(__read_number(tr.find('input.product_unit_price'))) || 0;
-    var row_total = quantity * unit_price;
-
-    // وضع القيمة في حقل المجموع الخاص بهذا السطر
-    tr.find('input.product_line_total').val(row_total);
-    tr.find('.product_line_total_text').text(__number_f(row_total));
     
-    update_table_total();
+    // حساب المجموع الفرعي للسطر
+    var row_total = quantity * unit_price;
+    
+    // تحديث خانة المجموع في السطر (تأكد من وجود الكلاس product_line_total)
+    tr.find('input.product_line_total').val(__number_f(row_total));
+    
+    // إذا كان لديك نص بجانب الخانة، نقوم بتحديثه أيضاً
+    if(tr.find('.product_line_total_text').length > 0){
+        tr.find('.product_line_total_text').text(__number_f(row_total));
+    }
 }
 
 // 10. استيراد المنتجات من إكسل
@@ -281,18 +296,29 @@ $(document).on('submit', '#export_quantity_products_modal form', function(e) {
                                             .closest('tr');
 
                         if (existingRow.length > 0) {
+                            // إذا المنتج موجود مسبقاً، نجمع الكميات
                             let current_qty = parseFloat(__read_number(existingRow.find('.product_quantity'))) || 0;
                             let total_qty = current_qty + new_qty;
                             __write_number(existingRow.find('.product_quantity'), total_qty);
+                            
+                            // تحديث السطر (هنا يتم ربط السعر بالخصم)
                             update_table_row(existingRow);
                         } else {
+                            // إذا منتج جديد، نضيف السطر للجدول
                             $('#stock_adjustment_product_table tbody').append($currentRow);
+                            
+                            // تشغيل الحسبة للسطر الجديد فور إضافته
+                            update_table_row($currentRow);
                             currentRows++;
                         }
                     });
+
+                    // تحديث العداد الكلي وتحديث إجمالي السند والخصم
                     $('#product_row_index').val(currentRows);
                     update_table_total();
                 }
+
+                // إدارة رسائل التنبيه والملفات المرفوضة
                 if (result.skipped_count > 0) {
                     let downloadLink = '';
                     if (result.download_url) {
@@ -305,6 +331,7 @@ $(document).on('submit', '#export_quantity_products_modal form', function(e) {
                 } else {
                     toastr.success(result.msg);
                 }
+
                 $('#export_quantity_products_modal').modal('hide');
                 $('#export_quantity_products_modal form')[0].reset();
             } else {
