@@ -372,61 +372,30 @@
               @show_tooltip(__('lang_v1.view_purchase_price_tooltip'))
             </div>
           </div>
-        </div>
-        </div>
-        <!--  add permission for stock out --> 
-          <hr>
-        @if(in_array('stock_adjustment', $enabled_modules))
-        <div class="row check_group">
-        <div class="col-md-1">
-          <h4>@lang( 'stock_adjustment.stock_adjustments' )</h4>
-        </div>
-        <div class="col-md-2">
-          <div class="checkbox">
-              <label>
-                <input type="checkbox" class="check_all input-icheck" > {{ __( 'role.select_all' ) }}
-              </label>
-            </div>
-        </div>
-        <div class="col-md-9">
+           <!--  add role for view and create quantity entry 001 --> 
           <div class="col-md-12">
             <div class="checkbox">
-              <label>
-                {!! Form::checkbox('permissions[]', 'stock_adjustment.view', false, 
-                [ 'class' => 'input-icheck']); !!} {{ __( 'stock_adjustment.stock_adjustment.view' ) }}
-              </label>
+                <label>
+                 {!! Form::checkbox('permissions[]', 'quantity_entry.view',  in_array('quantity_entry.view', $role_permissions), 
+                 [ 'class' => 'input-icheck']); !!} {{ __( 'role.quantity_entry.view' ) }}
+                </label>
+             </div>
             </div>
-          </div>
-          
+
           <div class="col-md-12">
             <div class="checkbox">
-              <label>
-                {!! Form::checkbox('permissions[]', 'stock_adjustment.create', false, 
-                [ 'class' => 'input-icheck']); !!} {{ __( 'stock_adjustment.create' ) }}
-              </label>
-            </div>
+               <label>
+                 {!! Form::checkbox('permissions[]', 'quantity_entry.create', in_array('quantity_entry.create', $role_permissions), 
+                 [ 'class' => 'input-icheck']); !!} {{ __( 'role.quantity_entry.create' ) }}
+                </label>
+             </div>
           </div>
-          <div class="col-md-12">
-            <div class="checkbox">
-              <label>
-                {!! Form::checkbox('permissions[]', 'stock_adjustment.update', false, 
-                [ 'class' => 'input-icheck']); !!} {{ __( 'stock_adjustment..update' ) }}
-              </label>
-            </div>
-          </div>
-          <div class="col-md-12">
-            <div class="checkbox">
-              <label>
-                {!! Form::checkbox('permissions[]', 'stock_adjustment.delete', false, 
-                [ 'class' => 'input-icheck']); !!} {{ __( 'stock_adjustment.delete' ) }}
-              </label>
-            </div>
-          </div>
+           <!--  add role for view and create quantity entry 001 -->
         </div>
         </div>
-         <!--  add permission for stock out --> 
+        
         <hr>
-        @endif
+        
         
         @if(in_array('purchases', $enabled_modules))
         <div class="row check_group">

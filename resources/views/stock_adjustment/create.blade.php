@@ -21,16 +21,12 @@
 
         @component('components.widget', ['class' => 'box-solid'])
             <div class="row">
-                <div class="col-sm-3">
-                    <div class="form-group">
-                        {!! Form::label('location_id', __('purchase.business_location') . ':*') !!}
-                        {!! Form::select('location_id', $business_locations, null, [
-                            'class' => 'form-control select2',
-                            'placeholder' => __('messages.please_select'),
-                            'required',
-                        ]) !!}
-                    </div>
-                </div>
+                 <div class="col-sm-3">
+        <div class="form-group">
+            {!! Form::label('location_id', __('quantity_entry.location')) !!}
+            {!! Form::select('location_id', $business_locations, null, ['class' => 'form-control select2', 'required']) !!}
+        </div>
+    </div>
                 <div class="col-sm-3">
                     <div class="form-group">
                         {!! Form::label('ref_no', __('purchase.ref_no') . ':') !!}
@@ -75,7 +71,7 @@
                                         'class' => 'form-control',
                                         'id' => 'search_product_for_srock_adjustment',
                                         'placeholder' => __('stock_adjustment.search_product'),
-                                        'disabled'
+                                       
                                     ]) !!}
                                 </div>
                             </div>

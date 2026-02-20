@@ -36,10 +36,15 @@
                name="products[{{$row_index}}][quantity]">
     </td>
 
-    {{-- 4. مخصص 2 --}}
-    <td class="text-center">
-        {{ $p_obj->product_custom_field2 ?? '-' }}
-    </td>
+   {{-- 4. مخصص 2 (التعبئة) --}}
+<td class="text-center">
+    {{-- نضع القيمة داخل input مخفي أو ظاهر ليقرأه الجافاسكريبت --}}
+    <input type="text" 
+           name="products[{{$row_index}}][custom_field_2]" 
+           class="form-control custom_field_2 input_number text-center" 
+           value="{{ $p_obj->product_custom_field2 ?? 1 }}" 
+           style="width: 70px; display: inline-block;">
+</td>
 
     {{-- 5. مخصص 3 --}}
     <td class="text-center">
@@ -54,9 +59,12 @@
     </td>
 
     {{-- 7. المجموع --}}
-    <td>
-        <input type="text" readonly class="form-control product_line_total" 
-               value="{{ @num_format(($quantity ?? 1) * $display_price) }}" style="font-weight: bold;">
+    <td class="text-center">
+        {{-- حقل مخفي لإرسال القيمة للسيرفر --}}
+        <input type="hidden" class="product_line_total" name="products[{{$row_index}}][row_total]" value="0">
+        
+        {{-- عرض النص للمستخدم بشكل عريض --}}
+        <span class="product_line_total_text tw-font-bold">0.00</span>
     </td>
 
     {{-- 8. حذف --}}

@@ -81,9 +81,7 @@ $(document).ready(function() {
         let search_field = $('#search_product_for_s_adj').length > 0 ? '#search_product_for_s_adj' : '#search_product_for_srock_adjustment';
         if ($(this).val()) {
             $(search_field).removeAttr('disabled');
-        } else {
-            $(search_field).attr('disabled', 'disabled');
-        }
+        } 
         $('table#stock_adjustment_product_table tbody').html('');
         $('#product_row_index').val(0);
         update_table_total();
@@ -102,14 +100,10 @@ $(document).on('change input', 'input.product_unit_price', function() {
 });
 
 // مراقبة شاملة لكل أحداث الإدخال في الجدول
-$(document).on('input change keyup', 'input.product_quantity, input.product_unit_price', function() {
-    // جلب السطر الذي حدث فيه التغيير
+// مراقبة شاملة لكل أحداث الإدخال في الجدول (تصحيح السطر)
+$(document).on('input change keyup', 'input.product_quantity, input.product_unit_price, input.custom_field_2', function() {
     var tr = $(this).closest('tr');
-    
-    // تنفيذ الحسبة للسطر (الكمية × السعر)
     update_table_row(tr);
-    
-    // تنفيذ الحسبة الكلية (الإجمالي + الخصم "خ")
     update_table_total();
 });
     // 5. حذف سطر منتج
@@ -153,16 +147,16 @@ $(document).on('input change keyup', 'input.product_quantity, input.product_unit
         ],
         aaSorting: [[1, 'desc']],
         columns: [
-            { data: 'action', name: 'action' },
-            { data: 'transaction_date', name: 'transaction_date' },
-            { data: 'ref_no', name: 'ref_no' },
-            { data: 'location_name', name: 'BL.name' },
-            { data: 'adjustment_type', name: 'adjustment_type' },
-            { data: 'final_total', name: 'final_total' },
-            { data: 'total_amount_recovered', name: 'total_amount_recovered' },
-            { data: 'additional_notes', name: 'additional_notes' },
-            { data: 'added_by', name: 'u.first_name' },
-        ],
+        { data: 'action', name: 'action', orderable: false, searchable: false }, // 1. الإجراءات
+        { data: 'transaction_date', name: 'transaction_date' },                // 2. التاريخ
+        { data: 'ref_no', name: 'ref_no' },                                   // 3. الرقم المرجعي
+        { data: 'location_name', name: 'BL.name' },                           // 4. الفرع
+        { data: 'adjustment_type', name: 'adjustment_type' },                 // 5. النوع
+        { data: 'final_total', name: 'final_total', orderable: false, searchable: false },                         // 6. عمود "ج" (الإجمالي)
+        { data: 'total_amount_recovered', name: 'total_amount_recovered' },   // 7. عمود "خ" (المسترد/الخصم)
+        { data: 'additional_notes', name: 'additional_notes' },               // 8. المستلم (أو الملاحظات حسب الـ Blade)
+        { data: 'added_by', name: 'added_by' }                                // 9. بواسطة
+    ],
         fnDrawCallback: function(oSettings) {
             __currency_convert_recursively($('#stock_adjustment_table'));
         },
@@ -208,6 +202,10 @@ function stock_adjustment_product_row(variation_id) {
         success: function(result) {
             $('table#stock_adjustment_product_table tbody').append(result);
             update_table_total();
+            // نجلب آخر سطر تم إضافته ونحدث الحسبة فيه فوراً
+            var last_tr = $('table#stock_adjustment_product_table tbody tr').last();
+            update_table_row(last_tr); 
+            update_table_total();
             $('#product_row_index').val(row_index + 1);
         },
     });
@@ -219,40 +217,40 @@ function update_table_total() {
 
     $('table#stock_adjustment_product_table tbody tr').each(function() {
         var row = $(this);
-        // استخدام دالة __read_number لفك تنسيق العملة
         var qty = parseFloat(__read_number(row.find('input.product_quantity'))) || 0;
         var unit_price = parseFloat(__read_number(row.find('input.product_unit_price'))) || 0;
-        
-        // قراءة السعر الأصلي مباشرة لأنه مخزن كرقم بسيط في الـ value
-        var original_price = parseFloat(row.find('input.original_purchase_price').val()) || 0;
+        var packing = parseFloat(__read_number(row.find('input.custom_field_2'))) || 0;
 
-        var row_total = qty * unit_price;
+        // تطبيق نفس المعادلة في الجمع الكلي
+        var row_total = (unit_price / 12) * (qty * packing);
         table_total += row_total;
 
+        // حساب الخصم (اختياري حسب حاجتك)
+        var original_price = parseFloat(row.find('input.original_purchase_price').val()) || 0;
         if (original_price > 0) {
             total_diff += (original_price - unit_price) * qty;
         }
     });
 
     $('span#total_adjustment').text(__number_f(table_total));
-    $('#total_adjustment_value').val(table_total);
-
+    $('#total_amount').val(table_total); // هذا الحقل الذي يذهب للـ Controller
+    
     if ($('#total_amount_recovered').length > 0) {
-        // نستخدم __write_number لتنسيق الرقم قبل كتابته
         __write_number($('#total_amount_recovered'), total_diff);
     }
 }
 function update_table_row(tr) {
-    var quantity = parseFloat(__read_number(tr.find('input.product_quantity'))) || 0;
+   var quantity = parseFloat(__read_number(tr.find('input.product_quantity'))) || 0;
     var unit_price = parseFloat(__read_number(tr.find('input.product_unit_price'))) || 0;
+    var packing = parseFloat(__read_number(tr.find('input.custom_field_2'))) || 0; // التعبئة
     
-    // حساب المجموع الفرعي للسطر
-    var row_total = quantity * unit_price;
+    // 2. تطبيق المعادلة المطلوبة
+    var row_total = (unit_price / 12) * (quantity * packing);
     
-    // تحديث خانة المجموع في السطر (تأكد من وجود الكلاس product_line_total)
-    tr.find('input.product_line_total').val(__number_f(row_total));
+    // 3. تحديث خانة المجموع المخفية (التي تذهب لقاعدة البيانات)
+    tr.find('input.product_line_total').val(row_total);
     
-    // إذا كان لديك نص بجانب الخانة، نقوم بتحديثه أيضاً
+    // 4. تحديث النص الظاهر للمستخدم
     if(tr.find('.product_line_total_text').length > 0){
         tr.find('.product_line_total_text').text(__number_f(row_total));
     }

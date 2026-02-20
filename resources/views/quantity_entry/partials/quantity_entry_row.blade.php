@@ -11,11 +11,11 @@
         <input type="text" name="products[{{$row_count}}][quantity]" value="{{$quantity}}" class="form-control input-sm quantity" required>
     </td>
     <td>
-        <input type="text" name="products[{{$row_count}}][purchase_price]" value="{{@num_format($purchase_price)}}" class="form-control input-sm purchase_price" required>
+        <input type="text" name="products[{{$row_count}}][purchase_price]" value="{{$purchase_price}}" class="form-control input-sm purchase_price" required>
     </td>
     <td>
         <span class="row_total">{{ $quantity * $purchase_price }}</span>
-        <input type="hidden" class="line_total" name="products[{{$row_count}}][line_total]" value="{{@num_format($quantity * $purchase_price) }}">
+        <input type="hidden" class="line_total" name="products[{{$row_count}}][line_total]" value="{{ $quantity * $purchase_price }}">
     </td>
     <td class="text-center">
         <i class="fa fa-trash remove_row text-danger" style="cursor:pointer;"></i>

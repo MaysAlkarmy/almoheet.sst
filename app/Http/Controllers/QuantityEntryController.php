@@ -15,6 +15,7 @@ use Carbon\Carbon;
 use App\Utils\TransactionUtil;
 use App\Transaction;
 use App\Utils\ProductUtil;
+use Datatables;
 use App\VariationLocationDetails;
 
 
@@ -34,145 +35,216 @@ class QuantityEntryController extends Controller
     /**
      * Display a listing of the resource.
      */
-   public function index()
-    {
+     public function index()
+{
+    if (!auth()->user()->can('quantity_entry.view') && !auth()->user()->can('quantity_entry.create')) {
+        abort(403, 'Unauthorized action.');
+    }
+
+    if (request()->ajax()) {
         $business_id = request()->session()->get('user.business_id');
+
+        $quantity_entry = Transaction::join(
+            'business_locations AS BL',
+            'transactions.location_id', '=', 'BL.id'
+        )
+        ->leftJoin('users as u', 'transactions.created_by', '=', 'u.id')
+        ->leftJoin('purchase_lines as pl', 'transactions.id', '=', 'pl.transaction_id')
+        ->where('transactions.business_id', $business_id)
+        ->where('transactions.type', 'add_quantity')
+        ->select(
+            'transactions.id',
+            'transaction_date',
+            'ref_no',
+            'BL.name as location_name',
+            'final_total',
+            DB::raw('SUM(pl.quantity) as added_qty'),
+            'additional_notes',
+            'transactions.id as DT_RowId',
+            DB::raw("CONCAT(COALESCE(u.surname, ''),' ',COALESCE(u.first_name, ''),' ',COALESCE(u.last_name,'')) as added_by")
+        )
+        ->groupBy('transactions.id')
+        ->orderBy('transactions.transaction_date', 'desc');
+
+        // فلترة المواقع المسموحة
+        $permitted_locations = auth()->user()->permitted_locations();
+        if ($permitted_locations != 'all') {
+            $quantity_entry->whereIn('transactions.location_id', $permitted_locations);
+        }
+
+        return Datatables::of($quantity_entry)
+    ->addColumn('action', function ($row) {
+        $show_url = action([\App\Http\Controllers\QuantityEntryController::class, 'show'], [$row->id]);
+        
+        // زر العرض (المعاينة)
+        $html = '<button type="button" data-href="' . $show_url . '" class="tw-dw-btn tw-dw-btn-xs tw-dw-btn-outline tw-dw-btn-primary btn-modal" data-container=".view_modal"><i class="fa fa-eye"></i> ' . __("messages.view") . '</button>';
+
+        // زر الطباعة (استخدام الكلاس الجديد والمضمون)
+        $print_url = route('quantity_entry.printInvoice', [$row->id]);
+        $html .= '&nbsp;<button type="button" data-href="' . $print_url . '" class="tw-dw-btn tw-dw-btn-xs tw-dw-btn-outline tw-dw-btn-success btn-print-now"><i class="fa fa-print"></i> ' . __("messages.print") . '</button>';
+          return $html; // تأكدي من وجود هذا السطر
+          })
+       ->editColumn('final_total', function ($row) {
+        if (auth()->user()->can('view_purchase_price')) {
+            return $this->transactionUtil->num_f($row->final_total, true);
+        }
+        return '<span>-</span>';
+    })
+    ->editColumn('transaction_date', '{{@format_datetime($transaction_date)}}')
+    ->editColumn('added_qty', function ($row) {
+        return $this->productUtil->num_f($row->added_qty, false);
+    })
+    ->setRowAttr([
+        'data-href' => function ($row) {
+            return action([\App\Http\Controllers\QuantityEntryController::class, 'show'], [$row->id]);
+        },
+        'class' => 'row-clickable'
+    ])
+    ->rawColumns(['final_total', 'action', 'added_qty'])
+    ->make(true);
+    }
+
+    return view('quantity_entry.index');
+}
+
+    
+    public function create()
+{
+    // التأكد من الصلاحية
+    if (! auth()->user()->can('purchase.create')) {
+        abort(403, 'Unauthorized action.');
+    }
+
+     $business_id = request()->session()->get('user.business_id');
 
         $business_locations = BusinessLocation::forDropdown($business_id);
         $user = Transaction::with('createdBy')
         ->where('business_id', $business_id)
         ->latest()
         ->get();
-
-
-        return view('quantity_entry.index', compact('business_locations','user'));
-    }
-
-    
-     public function create()
-    {
-        if (! auth()->user()->can('purchase.create')) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        $business_id = request()->session()->get('user.business_id');
-
-        // التحقق من الاشتراك
-        if (! $this->moduleUtil->isSubscribed($business_id)) {
-            return $this->moduleUtil->expiredResponse();
-        }
-
-        // جلب المواقع
-        $business_locations = BusinessLocation::forDropdown($business_id, false, true);
-        $business_locations = $business_locations['locations'];
-
-        return view('quantity_entry.index', compact('business_locations'));
-    }
-
+    return view('quantity_entry.create', compact('business_locations', 'user'));
+}
  
-
-
-   public function store(Request $request)
+      public function show($id)
 {
+    // تغيير الصلاحية لتناسب إدخال الكميات
+    if (! auth()->user()->can('quantity_entry.view')) {
+        abort(403, 'Unauthorized action.');
+    }
+
+    $business_id = request()->session()->get('user.business_id');
+
+    $quantity_entry = Transaction::where('transactions.business_id', $business_id)
+                ->where('transactions.id', $id)
+                ->where('transactions.type', 'add_quantity') // النوع الجديد
+                ->with([
+                    'purchase_lines', // العلاقة الصحيحة لعمليات الإدخال والشراء
+                    'location', 
+                    'business', 
+                    'purchase_lines.product', 
+                    'purchase_lines.variations', 
+                    'purchase_lines.variations.product_variation'
+                ])
+                ->firstOrFail();
+
+        $total_quantity = $quantity_entry->purchase_lines->sum('quantity');
+
+          return view('quantity_entry.show') // مسار الملف الجديد
+            ->with(compact('quantity_entry', 'total_quantity'));
+}
+
+
+public function store(Request $request)
+{
+    $products_input = $request->input('products');
+    if (is_string($products_input)) {
+        $products_data = json_decode($products_input, true);
+    } else {
+        $products_data = $products_input;
+    }
+
+    // التحقق من وجود بيانات
+    if (empty($products_data)) {
+        return response()->json(['success' => false, 'msg' => 'قائمة المنتجات فارغة']);
+    }
+    $is_last_chunk = $request->input('is_last_chunk') == 1;
+
     DB::beginTransaction();
-
     try {
-        // 0️⃣ Validation (أضف سعر الشراء للتحقق)
-        $request->validate([
-            'transaction_date' => 'required',
-            'location_id'      => 'required',
-            'products'         => 'required|array',
-            'products.*.quantity' => 'required|numeric|min:1',
-            'products.*.purchase_price' => 'required|numeric', // تأكد من إرسال السعر
-            'document' => 'nullable|file|max:' . (config('constants.document_size_limit') / 1000),
-            'ref_no'           => 'nullable|string'
-        ]);
-
-        $business_id = auth()->user()->business_id;
-        $user_id     = auth()->id();
-        $total_before_tax = 0; // متغير لتجميع الإجمالي
-
-        // 1️⃣ جلب مورد (كما هو)
-        // $supplier = DB::table('contacts')->where('business_id', $business_id)->where('type', 'supplier')->first();
-        // if (!$supplier) { throw new \Exception('لا يوجد مورد مرتبط بهذا النشاط'); }
-
-        // 2️⃣ توليد الرقم المرجعي (كما هو)
-        $year = date('Y'); 
-        $ref_count = $this->transactionUtil->setAndGetReferenceCount('purchase');
-        $formatted_count = sprintf("%04d", $ref_count);
-        $ref_no = "QE" . $year . "/" . $formatted_count;
-
-        // 3️⃣ رفع الملف (كما هو)
-        $document = null;
-        if ($request->hasFile('document')) {
-            $document = $this->transactionUtil->uploadFile($request, 'document', 'documents');
-        }
-
-        // 4️⃣ إنشاء Transaction (القيمة مبدئياً 0)
-        $transaction = Transaction::create([
-            'business_id'      => $business_id,
-            'location_id'      => $request->location_id,
-            'type'             => 'add_quantity', 
-            'status'           => 'received',
-           // 'contact_id'       => $supplier->id,
-            'ref_no'           => $ref_no,
-            'transaction_date' => Carbon::createFromFormat('m/d/Y H:i', $request->transaction_date),
-            'final_total'      => 0, // سيتم تحديثه لاحقاً
-            'created_by'       => $user_id,
-            'document'         => $document,
-        ]);
-
-        // 5️⃣ معالجة المنتجات
-        foreach ($request->products as $product) {
-            $unit_price = $product['purchase_price'] ?? 0;
-            $quantity = $product['quantity'];
-            $line_total = $unit_price * $quantity;
-            
-            $total_before_tax += $line_total; // إضافة إجمالي السطر إلى الإجمالي الكلي
-
-            // جلب الكمية السابقة (كما هو)
-            $current_stock = DB::table('variation_location_details')
-                ->where('variation_id', $product['variation_id'])
-                ->where('location_id', $request->location_id)
-                ->value('qty_available');
-
-            $prev_qty = $current_stock ?? 0;
-
-            // 5.1️⃣ حفظ في purchase_lines
-            DB::table('purchase_lines')->insert([
-                'transaction_id'         => $transaction->id,
-                'product_id'             => $product['product_id'],
-                'variation_id'           => $product['variation_id'],
-                'quantity'               => $quantity,
-                'previous_quantity'      => $prev_qty,
-                'purchase_price'         => $unit_price,
-                'purchase_price_inc_tax' => $unit_price,
-                'item_tax'               => 0,
-                'created_at'             => now(),
-                'updated_at'             => now(),
+        // 1. جلب أو إنشاء المعاملة بحالة 'draft'
+        $transaction = Transaction::where('ref_no', $request->ref_no)->first();
+        if (!$transaction) {
+            $transaction = Transaction::create([
+                'business_id' => auth()->user()->business_id,
+                'location_id' => $request->location_id,
+                'type' => 'add_quantity',
+                'status' => 'draft', // الحالة مبدئياً مسودة
+                'ref_no' => $request->ref_no,
+                'transaction_date' => Carbon::createFromFormat('m/d/Y H:i', $request->transaction_date),
+                'final_total' => 0,
+                'created_by' => auth()->id(),
             ]);
-
-            // تحديث المخزون (كما هو)
-            $this->productUtil->updateProductQuantity($request->location_id, $product['product_id'], $product['variation_id'], $quantity);
         }
 
-        // ✅ 6️⃣ تحديث الـ Transaction بالإجمالي النهائي
-        $transaction->final_total = $total_before_tax;
+        // 2. إدخال الأسطر فقط في purchase_lines (بدون تحديث المخزون الآن)
+        foreach ($products_data as $product) {
+            DB::table('purchase_lines')->insert([
+                'transaction_id' => $transaction->id,
+                'product_id' => $product['product_id'],
+                'variation_id' => $product['variation_id'],
+                'quantity' => $product['quantity'],
+                'purchase_price' => $product['purchase_price'],
+                'created_at' => now(),
+            ]);
+            $transaction->final_total += ($product['quantity'] * $product['purchase_price']);
+        }
         $transaction->save();
 
-        // 7️⃣ تسجيل النشاط
-        $this->transactionUtil->activityLog($transaction, 'added');
+        // 3. إذا كانت هذه هي الدفعة الأخيرة.. نقوم بتحديث المخزون للجميع!
+        if ($is_last_chunk) {
+            $all_lines = DB::table('purchase_lines')->where('transaction_id', $transaction->id)->get();
+            
+            foreach ($all_lines as $line) {
+                // تحديث المخزون الفعلي هنا
+                $affected = DB::table('variation_location_details')
+                    ->where('variation_id', $line->variation_id)
+                    ->where('location_id', $transaction->location_id)
+                    ->increment('qty_available', $line->quantity);
 
+                if ($affected == 0) {
+                    DB::table('variation_location_details')->insert([
+                        'product_id' => $line->product_id,
+                        'variation_id' => $line->variation_id,
+                        'location_id' => $transaction->location_id,
+                        'qty_available' => $line->quantity
+                    ]);
+                }
+            }
+            // تحويل الحالة إلى مستلمة (نهائية)
+            $transaction->status = 'received';
+            $transaction->save();
+            
+        }
+
+        //  تسجيل النشاط
+        $this->transactionUtil->activityLog($transaction, 'added');
         DB::commit();
-        return redirect()->route('quantity_entry.index')->with('status', ['success' => 1, 'msg' => 'تمت العملية بنجاح']);
+        return response()->json(['success' => true]);
 
     } catch (\Exception $e) {
         DB::rollBack();
-        return back()->withErrors('حدث خطأ: ' . $e->getMessage());
+        return response()->json(['success' => false, 'msg' => $e->getMessage()]);
     }
 }
 
-    
+
+    public function cleanupFailedTransaction(Request $request) {
+    // مسح المعاملة التي لم تكتمل لكي لا يبقى لها أثر
+    Transaction::where('ref_no', $request->ref_no)
+               ->where('status', 'draft')
+               ->delete();
+    return response()->json(['success' => true]);
+}
 
    public function getProducts(Request $request)
     {
@@ -189,13 +261,17 @@ class QuantityEntryController extends Controller
             ->where('products.business_id', $business_id)
             ->where(function ($q) use ($term) {
                 $q->where('products.name', 'like', "%{$term}%")
-                  ->orWhere('variations.sub_sku', 'like', "%{$term}%");
+                  ->orWhere('variations.sub_sku', 'like', "%{$term}%")
+                  ->orWhere('products.product_custom_field1', 'like', "%{$term}%");;
             })
             ->select(
                 'products.id as product_id',
                 'products.name',
                 'variations.id as variation_id',
-                'variations.sub_sku'
+                'variations.sub_sku',
+                'products.product_custom_field1 as model_no',
+                'variations.dpp_inc_tax'
+                
             )
             ->limit(20)
             ->get();
@@ -208,6 +284,7 @@ class QuantityEntryController extends Controller
                 'value' => $product->name,
                 'product_id' => $product->product_id,
                 'variation_id' => $product->variation_id,
+                'dpp_inc_tax' => $product->dpp_inc_tax,
             ];
         }
 
@@ -248,7 +325,7 @@ class QuantityEntryController extends Controller
         }
 
         // سعر الشراء الافتراضي
-        $purchase_price = $variation->default_purchase_price ?? 0;
+        $purchase_price = $variation->dpp_inc_tax ?? 0;
 
         return view('quantity_entry.partials.simple_purchase_entry_row', compact(
             'product',
@@ -263,7 +340,7 @@ class QuantityEntryController extends Controller
 {
     try {
         $request->validate([
-            'file' => 'required|max:2048', 
+            'file' => 'required', 
             'location_id' => 'required'
         ]);
 
@@ -329,7 +406,9 @@ class QuantityEntryController extends Controller
 
             // --- معالجة القيم الرقمية بشكل آمن ---
             $quantity = isset($value[1]) && is_numeric($value[1]) ? (float)$value[1] : 0;
-            $price = isset($value[2]) && is_numeric($value[2]) ? (float)$value[2] : 0;
+           $price = isset($value[2]) && is_numeric($value[2]) && (float)$value[2] > 0 
+         ? (float)$value[2] 
+         : $variation->dpp_inc_tax;
 
             $rows[] = [
                 'product'    => $product,
@@ -383,6 +462,48 @@ class QuantityEntryController extends Controller
      ]);
     }
 
+    public function printInvoice($id)
+{
+    try {
+        $business_id = request()->session()->get('user.business_id');
+
+        $quantity_entry = Transaction::where('business_id', $business_id)
+            ->where('id', $id)
+            ->where('type', 'add_quantity')
+            ->with([
+                'location',
+                
+                'purchase_lines',
+                'purchase_lines.product',
+                'purchase_lines.variations',
+                'purchase_lines.variations.product_variation',
+                'purchase_lines.product.unit'
+            ])
+            ->firstOrFail();
+
+        // إعداد العناوين والمعلومات الإضافية إذا لزم الأمر
+        $print_title = $quantity_entry->ref_no;
+
+        $output = [
+            'success' => 1,
+            'receipt' => [],
+            'print_title' => $print_title
+        ];
+
+        // هنا نقوم بعمل رندر لملف عرض مخصص للطباعة (أو نفس ملف show)
+        $output['receipt']['html_content'] = view('quantity_entry.partials.print', compact('quantity_entry'))->render();
+
+    } catch (\Exception $e) {
+        \Log::emergency('File:'.$e->getFile().'Line:'.$e->getLine().'Message:'.$e->getMessage());
+
+        $output = [
+            'success' => 0,
+            'msg' => __('messages.something_went_wrong'),
+        ];
+    }
+
+    return $output;
+}
    
 }
 

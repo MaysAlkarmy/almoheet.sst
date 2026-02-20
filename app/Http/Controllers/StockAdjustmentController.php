@@ -250,8 +250,10 @@ class StockAdjustmentController extends Controller
 
         $input_data['type'] = 'stock_adjustment';
         $input_data['business_id'] = $business_id;
+        $input_data['location_id'] = $location_id;                                          
         $input_data['created_by'] = $user_id;
         $input_data['transaction_date'] = $this->productUtil->uf_date($input_data['transaction_date'], true);
+        $input_data['final_total'] = $this->productUtil->num_uf($input_data['final_total']);
         $input_data['total_amount_recovered'] = $this->productUtil->num_uf($input_data['total_amount_recovered']);
 
         $ref_count = $this->productUtil->setAndGetReferenceCount('stock_adjustment');
@@ -661,7 +663,7 @@ public function import(Request $request)
                 'variations.sub_sku as sku',
                 'u.short_name as unit',
                 'u.id as unit_id',
-                'variations.default_purchase_price as last_purchased_price',
+                'variations.dpp_inc_tax as last_purchased_price',
                 \DB::raw('COALESCE(vld.qty_available, 0) as qty_available')
             ])->first();
         $product->formatted_qty_available = $this->productUtil->num_f($product->qty_available);

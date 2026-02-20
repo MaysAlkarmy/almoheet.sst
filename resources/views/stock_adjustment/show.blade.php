@@ -162,12 +162,7 @@
                     </div>
                 </div>
             </div>
-            <div class="row">
-              <div class="col-md-12">
-                    <strong>{{ __('lang_v1.activities') }}:</strong><br>
-                    @includeIf('activity_log.activities')
-                </div>
-            </div>
+            
         </div>
         <div class="modal-footer">
             <button type="button" class="tw-dw-btn tw-dw-btn-primary tw-text-white no-print" onclick="$(this).closest('div.modal-content').printThis();"><i class="fa fa-print"></i> @lang( 'messages.print' )</button>
