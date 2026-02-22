@@ -2,20 +2,77 @@
     <div class="modal-content">
         <div class="modal-body">
             {{-- تنسيق الخطوط السوداء والواضحة للطباعة --}}
-            <style>
-                .table-bold-border, .table-bold-border th, .table-bold-border td {
-                    border: 1px solid #000 !important;
-                }
-                #adjustment_show_table thead tr th {
-                    border-bottom: 2px solid #000 !important;
-                }
-                @media print {
-                    .table-bold-border, .table-bold-border th, .table-bold-border td {
-                        border: 1px solid #000 !important;
-                        -webkit-print-color-adjust: exact;
-                    }
-                }
-            </style>
+           <style>
+    /* تصغير الخط العام للمودال */
+    .modal-body { 
+        font-size: 12px !important; 
+        line-height: 1.2 !important;
+    } 
+
+    /* تصغير العناوين العلوية (رقم المرجع، التاريخ، إلخ) */
+    .invoice-info b, .invoice-info strong {
+        font-size: 13px !important;
+    }
+
+    /* تعديل الجدول: تصغير الخط وتقليل الفراغات */
+    .table-bold-border, .table-bold-border th, .table-bold-border td {
+        border: 1px solid #000 !important;
+        padding: 3px 4px !important; /* تقليل المسافة الداخلية جداً */
+        font-size: 11px !important;
+        vertical-align: middle !important;
+    }
+
+    /* جعل رؤوس الجدول بلون داكن وخط واضح */
+    #adjustment_show_table thead tr th {
+        border-bottom: 2px solid #000 !important;
+        background-color: #f2f2f2 !important; /* لون خلفية خفيف للرؤوس */
+        color: #000 !important;
+    }
+
+    /* تصغير حجم الصور في الجدول لتوفير مساحة */
+    .col-img img {
+        width: 30px !important;
+        height: 30px !important;
+    }
+
+    /* إعدادات الطباعة لضمان ظهور الخط الصغير */
+    @media print {
+        .modal-body { 
+            font-size: 10px !important; 
+        }
+        .table-bold-border th, .table-bold-border td {
+            padding: 2px 4px !important;
+        }
+        .no-print {
+            display: none !important;
+        }
+    }
+    @media print {
+    /* منع ظهور صفحة فارغة في النهاية */
+    html, body {
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* منع كسر الصفحة داخل الجدول أو بعده */
+    .modal-content, .modal-body, table {
+        page-break-after: avoid !important;
+        page-break-inside: auto !important;
+    }
+
+    /* إخفاء أي عناصر قد تأخذ مساحة مخفية في الأسفل */
+    .modal-footer, .no-print, script {
+        display: none !important;
+    }
+
+    /* تحديد مساحة الصفحة لضمان عدم تجاوزها */
+    @page {
+        margin: 0.5cm;
+        size: auto;
+    }
+}
+</style>
             @php
                 $business_id = $stock_adjustment->business_id;
                 $business = \App\Business::find($business_id);
@@ -27,7 +84,6 @@
             <div class="row no-print" style="margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
                 <div class="col-sm-12">
                     <strong style="margin-right: 15px;">إظهار/إخفاء أعمدة:</strong>
-                    <label style="margin-right: 10px; cursor: pointer;"><input type="checkbox" class="toggle-col" data-col="col-img" checked> الصورة</label>
                     
                     @if(!empty($p_labels['custom_field1']) || !empty($p_labels['custom_field_1']))
                         <label style="margin-right: 10px; cursor: pointer;"><input type="checkbox" class="toggle-col" data-col="col-cf1" checked> {{ $p_labels['custom_field1'] ?? ($p_labels['custom_field_1'] ?? 'مخصص 1') }}</label>
@@ -72,7 +128,6 @@
                         <table class="table table-condensed table-bold-border" id="adjustment_show_table">
                             <thead>
                                 <tr class="bg-green">
-                                    <th class="text-center col-img"><i class="fa fa-image"></i></th>
                                     
                                     @if(!empty($p_labels['custom_field1']) || !empty($p_labels['custom_field_1']))
                                         <th class="text-center col-cf1">{{ $p_labels['custom_field1'] ?? ($p_labels['custom_field_1'] ?? 'مخصص 1') }}</th>
@@ -104,9 +159,7 @@
                             <tbody>
                                 @foreach( $stock_adjustment->stock_adjustment_lines as $line )
                                     <tr>
-                                        <td class="text-center col-img">
-                                            <img src="{{ asset(!empty($line->variation->product->image) ? 'uploads/img/' . $line->variation->product->image : 'img/default.png') }}" style="width: 40px; height: 40px;" class="img-thumbnail">
-                                        </td>
+                                        
 
                                         @if(!empty($p_labels['custom_field1']) || !empty($p_labels['custom_field_1']))
                                             <td class="text-center col-cf1">{{ $line->variation->product->product_custom_field1 ?? '-' }}</td>
@@ -152,11 +205,11 @@
                         <table class="table no-border @cannot('view_purchase_price') show_price_with_permission no-print @endcan">
                             <tr>
                                 <th>ج: </th>
-                                <td><span class="display_currency pull-right" data-currency_symbol="true">{{ $stock_adjustment->final_total }}</span></td>
+                                <td><span class="display_currency pull-right" data-currency_symbol="true">{{@num_format($stock_adjustment->final_total) }}</span></td>
                             </tr>
                             <tr>
                                 <th>خ: </th>
-                                <td><span class="display_currency pull-right" data-currency_symbol="true">{{ $stock_adjustment->total_amount_recovered }}</span></td>
+                                <td><span class="display_currency pull-right" data-currency_symbol="true">{{@num_format( $stock_adjustment->total_amount_recovered) }}</span></td>
                             </tr>
                         </table>
                     </div>

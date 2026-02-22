@@ -5,18 +5,48 @@
             <h4 class="modal-title">@lang('quantity_entry.quantity_entry_details')</h4>
         </div>
         <div class="modal-body">
-            <style>
-                .table-bold-border, .table-bold-border th, .table-bold-border td {
-                    border: 1px solid #000 !important;
-                }
-                #quantity_show_table thead tr th {
-                    border-bottom: 2px solid #000 !important;
-                }
-                @media print {
-                    .no-print { display: none !important; }
-                    .table-bold-border { border: 1px solid #000 !important; }
-                }
-            </style>
+           <style>
+    /* تصغير الخط العام للطباعة */
+    body {
+        font-size: 12px;
+        color: #000;
+    }
+    
+    /* جعل الجدول مضغوطاً (Compact) */
+    .table-bold-border {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+    .table-bold-border th, .table-bold-border td {
+        border: 1px solid #000 !important;
+        padding: 3px 5px !important; /* تقليل الفراغات الداخلية لتصغير الطول */
+        font-size: 11px; /* تصغير خط البيانات */
+    }
+
+    .table-bold-border thead th {
+        background-color: #f2f2f2 !important;
+        -webkit-print-color-adjust: exact;
+        font-size: 12px;
+    }
+
+    /* تنسيق ترويسة الفاتورة */
+    .invoice-info {
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+
+    /* إخفاء أي عناصر غير ضرورية عند الطباعة */
+    @media print {
+        .no-print, .modal-header, .modal-footer, .row.no-print {
+            display: none !important;
+        }
+        .table-bold-border {
+            width: 100% !important;
+        }
+    }
+</style>
 
             <div class="row no-print" style="margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
                 <div class="col-sm-12">
@@ -73,17 +103,37 @@
                 </div>
             </div>
 
-            <div class="row">
-                <div class="col-md-6 col-md-offset-6 col-sm-12">
-                    <table class="table no-border">
-                        <tr>
-                            <th>@lang('quantity_entry.total'): </th>
-                            <td><span class="display_currency pull-right" data-currency_symbol="true">{{ $quantity_entry->final_total }}</span></td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </div>
+           <div class="row">
+    <div class="col-md-4 col-md-offset-8 col-sm-6 col-sm-offset-6">
+        <table class="table no-border table-condensed" style="width: 100%; font-size: 11px; margin-top: 5px;">
+            <style>
+                /* تصغير المسافات بين الأسطر داخل جدول الإجماليات */
+                .table-totals td, .table-totals th {
+                    padding: 2px 5px !important;
+                    line-height: 1.2 !important;
+                }
+            </style>
+            <tbody class="table-totals">
+                <tr>
+                    <th style="width: 20%;" class="text-right">@lang('quantity_entry.total_of_quantity'):</th>
+                    <td style="width: 40%;">
+                        <span class="pull-right">
+                            {{ @format_quantity($total_quantity) }}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <th class="text-right">@lang('quantity_entry.total'):</th>
+                    <td>
+                        <span class="display_currency pull-right" data-currency_symbol="true">
+                            {{ $quantity_entry->final_total }}
+                        </span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
         <div class="modal-footer">
             <button type="button" class="tw-dw-btn tw-dw-btn-primary tw-text-white no-print" onclick="$(this).closest('div.modal-content').printThis();"><i class="fa fa-print"></i> @lang( 'messages.print' )</button>

@@ -6,6 +6,7 @@ return [
     'sent' => 'مرسلة',
     'not_sent' => 'غير مرسلة',
     'gift_invoice'=> 'فاتورة هدية',
+    'cost' => 'التكلفة', 
     // ترجمات العروض
     'product_offers' => 'عروض المنتجات',
     'active_offers' => 'العروض النشطة',

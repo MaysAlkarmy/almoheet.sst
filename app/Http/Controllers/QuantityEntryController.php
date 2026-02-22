@@ -200,33 +200,27 @@ public function store(Request $request)
         }
         $transaction->save();
 
-        // 3. إذا كانت هذه هي الدفعة الأخيرة.. نقوم بتحديث المخزون للجميع!
+        // 3. تحديث المخزون باستخدام فنكشن النظام عند اكتمال الدفعات
         if ($is_last_chunk) {
             $all_lines = DB::table('purchase_lines')->where('transaction_id', $transaction->id)->get();
             
             foreach ($all_lines as $line) {
-                // تحديث المخزون الفعلي هنا
-                $affected = DB::table('variation_location_details')
-                    ->where('variation_id', $line->variation_id)
-                    ->where('location_id', $transaction->location_id)
-                    ->increment('qty_available', $line->quantity);
-
-                if ($affected == 0) {
-                    DB::table('variation_location_details')->insert([
-                        'product_id' => $line->product_id,
-                        'variation_id' => $line->variation_id,
-                        'location_id' => $transaction->location_id,
-                        'qty_available' => $line->quantity
-                    ]);
-                }
+                // استدعاء فنكشن التحديث من الـ ProductUtil
+                $this->productUtil->updateProductQuantity(
+                    $transaction->location_id, 
+                    $line->product_id, 
+                    $line->variation_id, 
+                    $line->quantity, 
+                    0, 
+                    null, 
+                    false
+                );
             }
-            // تحويل الحالة إلى مستلمة (نهائية)
+            
             $transaction->status = 'received';
             $transaction->save();
-            
         }
 
-        //  تسجيل النشاط
         $this->transactionUtil->activityLog($transaction, 'added');
         DB::commit();
         return response()->json(['success' => true]);
@@ -261,15 +255,13 @@ public function store(Request $request)
             ->where('products.business_id', $business_id)
             ->where(function ($q) use ($term) {
                 $q->where('products.name', 'like', "%{$term}%")
-                  ->orWhere('variations.sub_sku', 'like', "%{$term}%")
-                  ->orWhere('products.product_custom_field1', 'like', "%{$term}%");;
+                  ->orWhere('variations.sub_sku', 'like', "%{$term}%");
             })
             ->select(
                 'products.id as product_id',
                 'products.name',
                 'variations.id as variation_id',
                 'variations.sub_sku',
-                'products.product_custom_field1 as model_no',
                 'variations.dpp_inc_tax'
                 
             )
@@ -472,7 +464,6 @@ public function store(Request $request)
             ->where('type', 'add_quantity')
             ->with([
                 'location',
-                
                 'purchase_lines',
                 'purchase_lines.product',
                 'purchase_lines.variations',
@@ -481,21 +472,24 @@ public function store(Request $request)
             ])
             ->firstOrFail();
 
-        // إعداد العناوين والمعلومات الإضافية إذا لزم الأمر
+        // 1. حساب إجمالي الكمية
+        $total_quantity = $quantity_entry->purchase_lines->sum('quantity');   
+
         $print_title = $quantity_entry->ref_no;
 
+        // 2. تعريف المصفوفة بشكل صحيح (تأكدي من وجود هذا السطر)
         $output = [
             'success' => 1,
             'receipt' => [],
             'print_title' => $print_title
         ];
 
-        // هنا نقوم بعمل رندر لملف عرض مخصص للطباعة (أو نفس ملف show)
-        $output['receipt']['html_content'] = view('quantity_entry.partials.print', compact('quantity_entry'))->render();
+        // 3. رندر الصفحة مرة واحدة فقط مع تمرير المتغيرين
+        $output['receipt']['html_content'] = view('quantity_entry.partials.print', 
+            compact('quantity_entry', 'total_quantity'))->render();
 
     } catch (\Exception $e) {
         \Log::emergency('File:'.$e->getFile().'Line:'.$e->getLine().'Message:'.$e->getMessage());
-
         $output = [
             'success' => 0,
             'msg' => __('messages.something_went_wrong'),
@@ -506,6 +500,3 @@ public function store(Request $request)
 }
    
 }
-
-
-

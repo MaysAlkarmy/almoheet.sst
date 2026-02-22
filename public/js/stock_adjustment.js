@@ -341,7 +341,69 @@ $(document).on('submit', '#export_quantity_products_modal form', function(e) {
             toastr.error("حدث خطأ أثناء الرفع");
         }
     });
+
 });
+
+ // كود معالجة زر "حفظ وطباعة"
+$(document).on('click', '#save_and_print_btn', function(e) {
+    e.preventDefault();
+    var form = $('form#stock_adjustment_form');
+    
+    if (form.valid()) {
+        window.onbeforeunload = null;
+        $(window).off('beforeunload');
+
+        var btn = $(this);
+        var original_html = btn.html();
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> جاري الحفظ...');
+
+        var data = form.serialize();
+        data += "&submit_type=save_and_print";
+
+        $.ajax({
+            method: 'POST',
+            url: form.attr('action'),
+            dataType: 'json',
+            data: data,
+            success: function(result) {
+                if (result.success == 1) {
+                    toastr.success(result.msg);
+                    
+                    if (result.adjustment_id) {
+                        var url = "/stock-adjustments/" + result.adjustment_id + "?print=true";
+                        
+                        $.get(url, function(html) {
+                            $(html).printThis({
+                                importCSS: true,
+                                canvas: true,
+                                removeInline: false, // لضمان عدم حذف الـ Styles التي تضبط المسافات
+                                // الخيار الأول: إعادة التحميل بعد إغلاق نافذة الطباعة
+                                afterPrint: function() {
+                                    window.location.reload(); 
+                                }
+                            });
+
+                            // الخيار الثاني (الخطة البديلة): إذا لم تعمل afterPrint، 
+                            // سنقوم بإعادة التحميل بعد 5 ثوانٍ تلقائياً
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 3000); 
+                        });
+                    }
+                } else {
+                    btn.prop('disabled', false).html(original_html);
+                    toastr.error(result.msg);
+                    __page_leave_confirmation('#stock_adjustment_form');
+                }
+            },
+            error: function(xhr) {
+                btn.prop('disabled', false).html(original_html);
+                toastr.error("حدث خطأ في السيرفر");
+            }
+        });
+    }
+});
+
 
 $(document).on('shown.bs.modal', '.view_modal', function() {
     __currency_convert_recursively($('.view_modal'));

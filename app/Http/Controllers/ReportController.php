@@ -827,9 +827,9 @@ $total_transactions_count = (int)($total_sell_res->total_count ?? 0);
     // }
 
      ////////////// add quantity entry report 001
- public function quantityEntryReport(Request $request)
+  public function quantityEntryReport(Request $request)
 {
-    if (!auth()->user()->can('purchase_n_sell_report.view')) {
+    if (!auth()->user()->can('report.quantity_entry_report')) {
         abort(403, 'Unauthorized action.');
     }
 
@@ -849,7 +849,14 @@ $total_transactions_count = (int)($total_sell_res->total_count ?? 0);
             $query->where('transactions.location_id', $request->input('location_id'));
         }
         if (!empty($request->input('start_date')) && !empty($request->input('end_date'))) {
-            $query->whereBetween('transactions.transaction_date', [$request->input('start_date'), $request->input('end_date')]);
+         $start = $request->input('start_date');
+         $end = $request->input('end_date');
+    
+           // التأكد من أن التاريخ يشمل اليوم كاملاً
+         $query->whereBetween(DB::raw('DATE(transactions.transaction_date)'), [
+         date('Y-m-d', strtotime($start)), 
+         date('Y-m-d', strtotime($end))
+          ]);
         }
 
         // 3. التفرع بناءً على نوع العرض
@@ -4090,7 +4097,7 @@ if (!empty($full_start) && !empty($full_end)) {
     {
         $business_id = request()->session()->get('user.business_id');
         $transaction_types = [
-            'contact' => __('report.contact'),
+           'contact' => __('report.contact'),
             'user' => __('report.user'),
             'sell' => __('sale.sale'),
             'purchase' => __('lang_v1.purchase'),
@@ -4130,7 +4137,7 @@ if (!empty($full_start) && !empty($full_end)) {
                     $activities->where('subject_type', \App\Contact::class);
                 } elseif ($subject_type == 'user') {
                     $activities->where('subject_type', \App\User::class);
-                } elseif (in_array($subject_type, ['sell', 'purchase','quantity_entry',
+                } elseif (in_array($subject_type, ['sell', 'purchase','add_quantity','stock_adjustment',
                     'sales_order', 'purchase_order', 'sell_return', 'purchase_return', 'sell_transfer', 'expense', 'purchase_order', ])) {
                     $activities->where('subject_type', \App\Transaction::class);
                     $activities->whereHasMorph('subject', Transaction::class, function ($q) use ($subject_type) {
@@ -4157,9 +4164,12 @@ if (!empty($full_start) && !empty($full_end)) {
      } elseif ($row->subject_type == \App\Transaction::class && ! empty($row->subject->type)) {
         
         //  الطريقة ادخال كميات     
-        if ($row->subject->type == 'quantity_entry') {
-            $subject_type = __('quantity_entry.quantity_entry') ;
-        } else {
+        if ($row->subject->type == 'add_quantity') {
+            $subject_type = __('quantity_entry.quantity_entry');
+        } elseif ($row->subject->type == 'stock_adjustment') {
+        $subject_type = __('stock_adjustment.stock_adjustments'); // هنا تظهر "تسوية المخزون" أو "إخراج كميات" حسب ترجمتك
+         }
+        else {
             $subject_type = isset($transaction_types[$row->subject->type]) ? $transaction_types[$row->subject->type] : $row->subject->type;
         }
                           

@@ -6,15 +6,30 @@
         </div>
         <div class="modal-body">
             <style>
-                .table-bold-border, .table-bold-border th, .table-bold-border td {
-                    border: 1px solid #000 !important;
+                /* الحفاظ على ألوان الجدول الأصلية مع تصغير الحجم */
+                #quantity_show_table {
+                    width: 100% !important;
+                    margin-top: 10px;
                 }
-                #quantity_show_table thead tr th {
-                    border-bottom: 2px solid #000 !important;
+                #quantity_show_table th, #quantity_show_table td {
+                    border: 1px solid #d2d6de !important; /* لون حدود النظام الأصلي */
+                    padding: 5px !important;
+                    font-size: 13px; /* حجم خط متوازن */
                 }
+                /* ضمان بقاء لون خلفية العنوان أخضر والخط أبيض */
+                #quantity_show_table thead tr.bg-green th {
+                    background-color: #00a65a !important; 
+                    color: #fff !important;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                /* تنسيق جدول الإجماليات ليكون صغيراً ومحاذياً لليمين */
+               
                 @media print {
                     .no-print { display: none !important; }
-                    .table-bold-border { border: 1px solid #000 !important; }
+                    #quantity_show_table th, #quantity_show_table td {
+                        border: 1px solid #000 !important; /* حدود سوداء قوية عند الطباعة فقط */
+                    }
                 }
             </style>
 
@@ -34,38 +49,37 @@
                     <b>@lang('messages.date'):</b> {{ @format_datetime($quantity_entry->transaction_date) }}<br/>
                     <b>@lang('business.location'):</b> {{ $quantity_entry->location->name }}
                 </div>
-                
             </div>
 
-            <div class="row" style="margin-top: 20px;">
+            <div class="row" style="margin-top: 15px;">
                 <div class="col-sm-12">
                     <div class="table-responsive">
-                        <table class="table table-condensed table-bold-border" id="quantity_show_table">
+                        <table class="table table-condensed" id="quantity_show_table">
                             <thead>
                                 <tr class="bg-green">
                                     <th>#</th>
                                     <th class="col-sku">SKU</th>
-                                    <th class="text-center col-product">@lang('sale.product')</th>
-                                    <th class="text-center">@lang('sale.qty')</th>
-                                    <th class="text-center col-price @cannot('view_purchase_price') hide @endcan">@lang('lang_v1.cost')</th>
-                                    <th class="text-center col-subtotal @cannot('view_purchase_price') hide @endcan">@lang('quantity_entry.total')</th>
+                                    <th class="col-product">@lang('sale.product')</th>
+                                    <th>@lang('sale.qty')</th>
+                                    <th class="col-price @cannot('view_purchase_price') hide @endcan">@lang('lang_v1.cost')</th>
+                                    <th class="col-subtotal @cannot('view_purchase_price') hide @endcan">@lang('quantity_entry.total')</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach( $quantity_entry->purchase_lines as $line )
-                                  <tr>
-        <td>{{ $loop->iteration }}</td>
-        <td class="col-sku">{{ $line->variations->sub_sku ?? '' }}</td>
-        <td class="col-product">
-            {{ $line->product->name }}
-            @if($line->variations->name != 'DUMMY')
-                - {{ $line->variations->name }}
-            @endif
-        </td>
-        <td class="text-center">{{ @format_quantity($line->quantity) }}</td>
-        <td class="text-center col-price @cannot('view_purchase_price') hide @endcan">{{ @num_format($line->purchase_price) }}</td>
-        <td class="text-center col-subtotal @cannot('view_purchase_price') hide @endcan">{{ @num_format($line->purchase_price * $line->quantity) }}</td>
-    </tr>
+                                    <tr>
+                                        <td class="text-center">{{ $loop->iteration }}</td>
+                                        <td class="col-sku">{{ $line->variations->sub_sku ?? '' }}</td>
+                                        <td class="col-product">
+                                            {{ $line->product->name }}
+                                            @if($line->variations->name != 'DUMMY')
+                                                - {{ $line->variations->name }}
+                                            @endif
+                                        </td>
+                                        <td class="text-center">{{ @format_quantity($line->quantity) }}</td>
+                                        <td class="text-center col-price @cannot('view_purchase_price') hide @endcan">{{ @num_format($line->purchase_price) }}</td>
+                                        <td class="text-center col-subtotal @cannot('view_purchase_price') hide @endcan">{{ @num_format($line->purchase_price * $line->quantity) }}</td>
+                                    </tr>
                                 @endforeach
                             </tbody>
                         </table>
@@ -74,27 +88,39 @@
             </div>
 
             <div class="row">
-                <div class="col-md-6 col-md-offset-6 col-sm-12">
-                    <table class="table no-border">
-                       <tr>
-                           <th>@lang('quantity_entry.total_of_quantity'): </th>
-                            <td>
-                              <span class="pull-right">
-                                {{ @format_quantity($total_quantity) }}
-                              </span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>@lang('quantity_entry.total'): </th>
-                            <td><span class="display_currency pull-right" data-currency_symbol="true">{{ $quantity_entry->final_total }}</span></td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </div>
+    <div class="col-md-6 col-md-offset-6 col-sm-12">
+        <table class="table no-border">
+            <tbody class="table-totals">
+                <tr>
+                    <th style="width: 20%; vertical-align: middle;" class="text-right">
+                        @lang('quantity_entry.total_of_quantity'):
+                    </th>
+                    <td style="width: 40%; vertical-align: middle;">
+                        <span class="pull-right">
+                            {{ @format_quantity($total_quantity) }}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <th class="text-right" style="vertical-align: middle;">
+                        @lang('quantity_entry.total'):
+                    </th>
+                    <td style="vertical-align: middle;">
+                        <span class="display_currency pull-right" data-currency_symbol="true">
+                            {{ $quantity_entry->final_total }}
+                        </span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
         <div class="modal-footer">
-            <button type="button" class="tw-dw-btn tw-dw-btn-primary tw-text-white no-print" onclick="$(this).closest('div.modal-content').printThis();"><i class="fa fa-print"></i> @lang( 'messages.print' )</button>
+            <button type="button" class="tw-dw-btn tw-dw-btn-primary tw-text-white no-print btn-print-now" 
+                data-href="{{ action([\App\Http\Controllers\QuantityEntryController::class, 'printInvoice'], [$quantity_entry->id]) }}">
+                <i class="fa fa-print"></i> @lang( 'messages.print' )
+            </button>
             <button type="button" class="tw-dw-btn tw-dw-btn-neutral tw-text-white no-print" data-dismiss="modal">@lang( 'messages.close' )</button>
         </div>
     </div>

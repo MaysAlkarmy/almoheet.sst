@@ -231,7 +231,7 @@ class StockAdjustmentController extends Controller
                 if ($qty_requested > $qty_available) {
                     $output = [
                         'success' => 0, 
-                        'msg' => "توقف! الكمية المطلوبة للمنتج (" . $product_check->product_name . ") هي ($qty_requested) ولكن المتوفر حالياً هو ($qty_available) فقط."
+                        'msg' => "توقف! الكمية المطلوبة للمنتج (" . $product_check->product_name . ") هي ($qty_requested) ولكن المتوفر حالياً هو ($qty_available) فقط.",                        
                     ];
                     
                     if ($request->ajax()) {
@@ -299,12 +299,20 @@ class StockAdjustmentController extends Controller
         $this->transactionUtil->activityLog($stock_adjustment, 'added', null, [], false);
 
         DB::commit();
-        $output = ['success' => 1, 'msg' => __('stock_adjustment.stock_adjustment_added_successfully')];
+        $output = ['success' => 1, 
+        'msg' => __('stock_adjustment.stock_out_added_successfully'),
+        'adjustment_id' => $stock_adjustment->id ];
 
     } catch (\Exception $e) {
-        DB::rollBack();
-        \Log::emergency('خطأ في الحفظ: '.$e->getMessage());
-        $output = ['success' => 0, 'msg' => "حدث خطأ غير متوقع"];
+       DB::rollBack();
+        // تسجيل الخطأ التفصيلي في سجلات لارافيل للمراجعة
+        \Log::emergency('خطأ في الحفظ: ' . $e->getMessage() . ' في السطر: ' . $e->getLine());
+        
+        // إرجاع رسالة الخطأ الحقيقية بدلاً من "غير متوقع" للتشخيص
+        $output = [
+            'success' => 0, 
+            'msg' => "فشل الحفظ: " . $e->getMessage()
+        ];
     }
 
     if ($request->ajax()) {
